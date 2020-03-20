@@ -10,7 +10,9 @@ app.get('/', function(req, res, next) {
 });
 
 app.get('/search', function(req, res, next) {
+    // replace with your path to Joplin SQLite DB
     const dbpath = '/home/jyuvaraj03/.config/joplindev-desktop/database.sqlite';
+
     const db = new sqlite3.Database(dbpath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, error => {
         if (error) {
             console.log(error);
@@ -22,15 +24,18 @@ app.get('/search', function(req, res, next) {
         }
     });
 
-    console.time('whole');
+    console.time('whole');  // start the timing for the whole search
     
+    // the below sql query is a modification of the query used in the current search engine in Joplin
+    // here ALL the notes are selected from the SQLite DB instead of only notes which match given term
+    // and then passed to Fuse.JS for fuzzy searching
     const sql = "SELECT notes_fts.id, notes_fts.title AS normalized_title, offsets(notes_fts) AS offsets, notes.title, notes.body, notes.user_updated_time, notes.is_todo, notes.todo_completed, notes.parent_id FROM notes_fts LEFT JOIN notes ON notes_fts.id = notes.id";
     db.all(sql, [], (err, rows) => {
         if (err) {
             throw err;
         } 
 
-        console.time('fuzzy');
+        console.time('fuzzy');  // start the timing for fuzzy search using fusejs
 
         let searchQuery = req.query.searchTerm;
         let options = {
@@ -46,12 +51,13 @@ app.get('/search', function(req, res, next) {
         };
         let fuse = new Fuse(rows, options); // "rows" is the result rows from SQL query
         let result = fuse.search(searchQuery ? searchQuery : '');
-    
+
         console.timeLog('fuzzy', result.length);
-        console.timeEnd('fuzzy');
+        console.timeEnd('fuzzy');   // stop the timing for fuzzy search using fusejs
     
-        console.timeEnd('whole');
+        console.timeEnd('whole');   // stop the timing for the whole event
     });
+    
     db.close();
 });
 
